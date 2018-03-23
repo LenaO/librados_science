@@ -527,4 +527,147 @@ JRadosDataSet::readLayer( T *data, size_t &bytes_read) {
 
 }
 
+template <typename T>
+typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+JRadosDataSet::readBox(size_t start_p[2], size_t end_p[2],  T const *data ){
+
+    size_t offset;
+    const size_t start_x = start_p[0];
+    const size_t start_y = start_p[1];
+    const size_t w = end_p[0] - start_p[0];
+    const size_t h = end_p[1] - start_p[1];
+    char* curr_ptr =  const_cast<char*>(reinterpret_cast<const char*>(data));
+    //rados_completion_t comp;
+    if(_shape==nullptr|| _dims==nullptr) {
+       int  err= _get_shape();
+       if(err<0)
+            return err;
+    }
+    assert(start_x+w <= _dims[0]);
+    assert(start_y+h <= _dims[1]);
+    assert(sizeof(T) == jtype_to_size[_shape->type]);
+ //   std::vector<int> prval(w);
+   // std::vector<size_t> bytes_read(w);
+    std::vector<int> prval(h);
+    std::vector<size_t> bytes_read(h);
+
+    //const size_t bytes_to_read = sizeof(T) * (h);
+    const size_t bytes_to_read = sizeof(T) * (w);
+    int r = w/512 + (w%512!=0 ? 1:0);
+    std::vector<rados_completion_t> completions(r);
+    std::vector<rados_completion_t>::iterator it = completions.begin();
+    size_t w_left = h;
+    //size_t w_left = w;
+    size_t start = start_y;
+    //size_t start = start_x;
+    size_t i =0;
+
+
+    for (int k=0; k<r; ++it, ++k) {
+        rados_aio_create_completion(NULL, NULL, NULL, &(*it));
+        rados_read_op_t op = rados_create_read_op();
+        for(size_t y=start; y<start+std::min(w_left,size_t(512)); y++,i++) {
+
+            offset = (start_x+ _dims[0] * y)*sizeof(T);
+            //offset = (start_y+ _dims[1] * y)*sizeof(T);
+            rados_read_op_read(op, offset, bytes_to_read, curr_ptr, &bytes_read[i], &prval[i]);
+            curr_ptr += bytes_to_read;
+        }
+        start+=512;
+        w_left-=512;
+        rados_aio_read_op_operate(op,_io_ctx, *it,  get_name().c_str(), 0);
+
+        rados_release_read_op(op);
+    }
+
+
+    //    rados_aio_flush(_io_ctx);
+    for(auto comp : completions) {
+        rados_aio_wait_for_complete(comp);
+        rados_aio_release(comp);
+    }/*
+
+        if(rados_aio_get_return_value(comp)<0){
+        std::cerr<<"Error in write completion  for layer write"<<std::endl;
+        throw std::runtime_error(strerror(-err));
+        }
+
+        std::cout<<"JHE2"<<std::endl;
+
+        }*/
+//  }
+return 0;
+
+
+}
+
+
+template <typename T>
+typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+JRadosDataSet::writeBox(size_t start_p[2], size_t end_p[2],  T const *data ){
+
+    size_t offset;
+    const size_t start_x = start_p[0];
+    const size_t start_y = start_p[1];
+    const size_t w = end_p[0] - start_p[0];
+    const size_t h = end_p[1] - start_p[1];
+    char* curr_ptr =  const_cast<char*>(reinterpret_cast<const char*>(data));
+    //rados_completion_t comp;
+    if(_shape==nullptr|| _dims==nullptr){
+        int err = _get_shape();
+        if(err<0)
+            return err;
+
+    }
+    assert(start_x+w <= _dims[0]);
+    assert(start_y+h <= _dims[1]);
+    assert(sizeof(T) == jtype_to_size[_shape->type]);
+
+
+    //const size_t bytes_to_write = sizeof(T) * (h);
+    const size_t bytes_to_write = sizeof(T) * (w);
+    int r = w/512 + (w%512!=0 ? 1:0);
+    std::vector<rados_completion_t> completions(r);
+    std::vector<rados_completion_t>::iterator it = completions.begin();
+    size_t w_left = h;
+    //size_t w_left = w;
+    size_t start = start_y;
+    //size_t start = start_x;
+    size_t i =0;
+
+
+    for (int k=0; k<r; ++it, ++k) {
+        rados_aio_create_completion(NULL, NULL, NULL, &(*it));
+        rados_write_op_t op = rados_create_write_op();
+        for(size_t y=start; y<start+std::min(w_left,size_t(512)); y++,i++) {
+
+            offset = (start_x+ _dims[0] * y)*sizeof(T);
+            //offset = (start_y+ _dims[1] * y)*sizeof(T);
+            rados_write_op_write(op, curr_ptr , bytes_to_write,offset);
+            curr_ptr += bytes_to_write;
+        }
+        start+=512;
+        w_left-=512;
+        rados_aio_write_op_operate(op,_io_ctx, *it,  get_name().c_str(), NULL, 0);
+        rados_release_write_op(op);
+    }
+    //    rados_aio_flush(_io_ctx);
+    for(auto comp : completions) {
+        rados_aio_wait_for_complete(comp);
+
+        if(rados_aio_get_return_value(comp)<0){
+            std::cerr<<"Error in write completion  for layer write"<<std::endl;
+            throw std::runtime_error(strerror(-1));
+        }
+        rados_aio_release(comp);
+
+    }
+//  }
+return 0;
+
+
+}
+
+
+
 }
