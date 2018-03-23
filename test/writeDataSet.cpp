@@ -9,6 +9,13 @@ int main() {
 
     size_t shape[2] = {32L,32L};
     uint8_t data[32*32];
+     for(int i =0; i<32; i++)
+
+        for(int j =0; j<32; j++) {
+            data[i*32+j] =0;
+        }
+ 
+
     DataSet.writeLayer(2, shape, data, JRados::UINT8 );
     uint8_t boxData[12*13];
     size_t start[2] = {0,3};
