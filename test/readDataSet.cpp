@@ -24,10 +24,10 @@ int main() {
     size_t start[2] = {0,3};
     size_t end[2] ={0+12,3+13};
     DataSet.readBox( start,end, boxData);
-    for(int i =0; i<12; i++) {
+    for(int i =0; i<13; i++) {
 
-        for(int j =0; j<13; j++) {
-            std::cout<<(int)boxData[i*13+j]<<" ,";
+        for(int j =0; j<12; j++) {
+            std::cout<<(int)boxData[i*12+j]<<" ,";
         }
         std::cout<<std::endl;
     }

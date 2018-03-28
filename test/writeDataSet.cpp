@@ -12,19 +12,19 @@ int main() {
      for(int i =0; i<32; i++)
 
         for(int j =0; j<32; j++) {
-            data[i*32+j] =0;
+            data[i*32+j] =3;
         }
  
 
     DataSet.writeLayer(2, shape, data, JRados::UINT8 );
-    uint8_t boxData[12*13];
-    size_t start[2] = {0,3};
-    size_t end[2] ={0+12,3+13};
+    uint8_t boxData[4*13];
+    size_t start[2] = {3,10};
+    size_t end[2] ={3+4,10+13};
 
-    for(int i =0; i<12; i++) 
+    for(int i =0; i<13; i++) 
 
-        for(int j =0; j<13; j++) {
-            boxData[i*13+j] =1;
+        for(int j =0; j<4; j++) {
+            boxData[i*4+j] =4;
         }
  
 

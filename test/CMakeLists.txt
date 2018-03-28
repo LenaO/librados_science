@@ -1,6 +1,6 @@
 set( TESTS  writeDataSet.cpp  readDataSet.cpp CacheDictTest.cpp CacheTest.cpp )
 
-set (LINK_LIBS ${LINK_LIBS} conduit "radosdataset-static" )
+set (LINK_LIBS ${LINK_LIBS}  "radosdataset-static" )
 
 foreach( testsourcefile ${TESTS} )
     # I used a simple string replace, to cut off .cpp.

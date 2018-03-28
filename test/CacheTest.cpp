@@ -27,7 +27,14 @@ int main() {
         }
         std::cout<<std::endl;
     }
+    float* recv3;
+    size_t* float_shape;
 
+    DataCache.readData("test2", recv3, ndims, float_shape);
 
+    for (int i =0; i<float_shape[0]; i++){
+        std::cout<<recv3[i]<<";";
+    }
+        std::cout<<std::endl;
 }
 
