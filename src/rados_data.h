@@ -264,6 +264,7 @@ class JRadosObject {
                 rados_shutdown(cluster);
 
                 std::cerr<<"Cannot connect to cluster, maybe you config is wrong\n"<<ret<<std::endl;;
+                return ret;
             }
 
 
@@ -321,7 +322,7 @@ class JRadosDataSet: public JRadosObject{
             memcpy(_dims, dims, sizeof(size_t) *ndims);
             writeAttr("shape" ,  _shape);
             writeAttr("dims" , dims, ndims);
-
+            return 0;
 
         }
         template< typename T >
@@ -478,19 +479,29 @@ template< typename T >
 typename std::enable_if<std::is_arithmetic<T>::value, T>::type
 JRadosDataSet::writeLayer(const size_t ndims, const size_t *dims, const T *data, jceph_type type) {
 
-    const DataSetShape  shape = {ndims, type};
     size_t bytes = 1;
+
+    if(_shape != NULL)
+        delete _shape;
+    _shape=new DataSetShape{ndims, type};
+
+
+     if(_dims != NULL)
+        delete _dims;
+
+    _dims = new size_t[ndims];
     for(size_t i = 0; i<ndims; ++i) {
-        bytes*= dims[i];
+        _dims[i]=dims[i];
+         bytes*= dims[i];
     }
 
     bytes*=sizeof(T);
-    size_t bytes_to_write = std::min(size_t{CEPH_MAX_WRITE}, bytes);
-    size_t bytes_remaining = bytes-bytes_to_write;
+
     int err;
     size_t offset = 0;
-    writeAttr("shape" ,  &shape);
+    writeAttr("shape" ,  _shape);
     writeAttr("dims" , dims, ndims);
+
     writeData( reinterpret_cast<const char*>(data), bytes);
     return 0;
 
