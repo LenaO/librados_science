@@ -1,3 +1,6 @@
+#ifndef _rados_data_h_
+#define _rados_data_h_
+
 #include <iostream>
 #include <string>
 #include <rados/librados.hpp>
@@ -223,7 +226,11 @@ class JRadosObject {
             return err;
 
         }
+    int remove(){
 
+        return rados_remove(_io_ctx, _name.c_str());
+
+    }
     protected:
 
         static rados_ioctx_t _io_ctx;
@@ -343,6 +350,15 @@ class JRadosDataSet: public JRadosObject{
             typename std::enable_if<std::is_arithmetic<T>::value, T>::type
             writeBox(size_t start_p[2], size_t end_p[2],  T const *data );
 
+        template <typename T>
+            typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+                 writeLine1D(size_t start_p, size_t end,  T const *data );
+
+        template <typename T>
+            typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+                readLine1D(size_t start_p, size_t end,  T const *data );
+
+
         uint8_t getType() {
             if(_shape==nullptr|| _dims==nullptr) {
                 int err = _get_shape();
@@ -362,6 +378,20 @@ class JRadosDataSet: public JRadosObject{
                 Shape = _shape;
                 return 0;
 
+            }
+
+        size_t getShape(int &Ndims, size_t* &dims, int& type){
+            if(_shape==nullptr|| _dims==nullptr) {
+                int err = _get_shape();
+                if(err<0)
+                    return err;
+               }
+
+               dims = new size_t[_shape->ndims];
+               Ndims=_shape->ndims;
+               type= _shape->type;
+               memcpy(dims, _dims, sizeof(size_t)*Ndims);
+               return getLayerSize();
             }
 
         size_t getLayerPoints(){
@@ -678,7 +708,67 @@ return 0;
 
 
 }
+template <typename T>
+typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+JRadosDataSet::writeLine1D(size_t start_p, size_t end,  T const *data ){
 
+    size_t offset;
+    const size_t start_x = start_p;
+
+
+    char* curr_ptr =  const_cast<char*>(reinterpret_cast<const char*>(data));
+    //rados_completion_t comp;
+    if(_shape==nullptr|| _dims==nullptr){
+        int err = _get_shape();
+        if(err<0)
+            return err;
+
+    }
+
+    const size_t w = std::min(end,_dims[0]) - start_p;
+    assert(sizeof(T) == jtype_to_size[_shape->type]);
+
+    const size_t bytes_to_write = sizeof(T) * (w);
+
+    offset = start_p*sizeof(T);
+    rados_write(_io_ctx, get_name().c_str(), curr_ptr , bytes_to_write,offset);
+
+
+    return bytes_to_write/sizeof(T);
 
 
 }
+
+template <typename T>
+typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+JRadosDataSet::readLine1D(size_t start_p, size_t end,  T const *data ){
+
+    size_t offset;
+    const size_t start_x = start_p;
+
+
+    char* curr_ptr =  const_cast<char*>(reinterpret_cast<const char*>(data));
+    //rados_completion_t comp;
+    if(_shape==nullptr|| _dims==nullptr){
+        int err = _get_shape();
+        if(err<0)
+            return err;
+
+    }
+
+    const size_t w = std::min(end,_dims[0]) - start_p;
+    assert(sizeof(T) == jtype_to_size[_shape->type]);
+
+    const size_t bytes_to_read = sizeof(T) * (w);
+
+    offset = start_p*sizeof(T);
+    rados_read(_io_ctx, get_name().c_str(), curr_ptr , bytes_to_read,offset);
+
+
+    return bytes_to_read/sizeof(T);
+
+
+}
+
+}
+#endif

@@ -42,7 +42,24 @@ namespace JRados {
                         return false;
                 }
             }
+            template< typename T >
+                typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+                 addAttr(const std::string obj_name, const std::string attr_name, T* value){
 
+                    return  _set_for_read(obj_name)->writeAttr(attr_name, value);
+
+                }
+
+            template< typename T >
+                typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+                 getAttr(const std::string obj_name, const std::string attr_name, T* value){
+                    if(!exist(obj_name))
+                        return -1;
+                    char *result;
+                      _cache_data[name]->getAttr(attr_name, result);
+                    return (T*) result;
+
+                }
 
             template< typename T >
             typename std::enable_if<std::is_arithmetic<T>::value, T>::type
@@ -374,7 +391,6 @@ namespace JRados {
             inline    JRadosDataSet *_set_for_read(std::string name) {
 
                 if(!exist(name)){
-                    std::cout<<"Does not exist "<<std::endl;
                     JRadosDataSet*  set =  new JRadosDataSet(name, _name);
                     _cache_data[name]= set;
                     return set;
