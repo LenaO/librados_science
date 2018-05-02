@@ -34,17 +34,15 @@ class RadosObject:
 
 
     def delete(self):
+        self.save()
         if self._cschema.dtype().is_number():
             if  self._dataSet is None:
                 self._dataSet=scirados.RadosDataSet(self._name, self._pool_name)
             self._dataSet.remove()
-            print( self._parent._cschema[self._basename])
         else:
             for k in self.keys():
                 self[str(k)].delete()
-            if self._radosSchema is None:
-                print (self._parent._cschema[self._basename])
-            else:
+            if self._radosSchema is not None:
                 self._radosSchema.remove()
 
     def _open(self, mode):

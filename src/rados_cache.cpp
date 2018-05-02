@@ -55,7 +55,7 @@ RadosCache_init(RadosCacheObject *self, PyObject *args, PyObject *kwds)
 {
     PyObject *tmp;
     char*  Name;
-    static char *kwlist[] = {"name"};
+    static char *kwlist[] = {"name",NULL};
 
     if (! PyArg_ParseTupleAndKeywords(args, kwds, "s", kwlist,
                                       &Name)

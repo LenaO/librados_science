@@ -53,10 +53,10 @@ void remove_empty(conduit::Schema* node){
 int JRadosHObject::save(){
     int ret = 0;
     if(_is_root) {
-        if(_changed)
+        if(_changed) {
             remove_empty(_node);
-        ret = _schema.writeSchema(*_node);
-
+           ret = _schema.writeSchema(*_node);
+        }
     }
     return ret;
 }
