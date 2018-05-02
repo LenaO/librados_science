@@ -55,8 +55,8 @@ int JRadosHObject::save(){
     if(_is_root) {
         if(_changed) {
             remove_empty(_node);
-           ret = _schema.writeSchema(*_node);
+            ret = _schema.writeSchema(*_node);
         }
     }
-    return ret;
+    return 0;
 }

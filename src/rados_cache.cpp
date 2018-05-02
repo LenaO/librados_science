@@ -1300,12 +1300,12 @@ static PyObject*  RadosSchema_writeSchema(RadosSchemaObject * self, PyObject* ar
 {
 
     char*  schema;
+    std::string new_schema;
       if (! PyArg_ParseTuple(args, "s", &schema) )
         return NULL;
 
-    int ret = self->_set->writeSchema(schema);
-
-      return PyLong_FromLong(ret);
+    new_schema = self->_set->writeSchema(schema);
+    return (PyObject*) PyString_FromString(new_schema.c_str());
 }
 
 

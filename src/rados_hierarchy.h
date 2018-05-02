@@ -79,66 +79,75 @@ jrados_dtype_to_conduit_dtype(uint8_t dt, size_t num_elems)
 
 class JRadosCSchema: public JRadosObject{
     public:
-        JRadosCSchema(std::string name): JRadosObject(name), _exist(-1), version(0){}
-        JRadosCSchema(std::string name, std::string pool_name): JRadosObject(name,pool_name), _exist(-1), version(0){
+        JRadosCSchema(std::string name): JRadosObject(name), _exist(-1) { t_version =time(NULL); }
+        JRadosCSchema(std::string name, std::string pool_name): JRadosObject(name,pool_name), _exist(-1) {
+            t_version =time(NULL);
         }
-        int writeSchema(const std::string& json_string) {
+        std::string writeSchema(const std::string& json_string) {
             int ret;
             const std::string name = get_name();
             size_t size = json_string.length();
+            size_t c_stringsize;
+            time_t new_time;
 
+            std::string write;
+            int lock;
+            do{
+            lock = rados_lock_exclusive(_io_ctx, name.c_str(), "write_lock", "cookie", "write lock for schema",NULL, 0);
+            } while(lock!=0);
+            /*first, we check the version of our of the schema on the cluster */
+            write= json_string;
+
+            ret = rados_stat(_io_ctx,  name.c_str(), &c_stringsize, &new_time);
+            if(ret ==0) {
+                    char *new_schema = new char[c_stringsize];
+                    ret =  rados_read(_io_ctx, name.c_str(), new_schema, c_stringsize,0);
+                    if(ret<0) {
+                        std::cerr<<"Error reading Schema "<<name<<" from ceph cluster "<< ret <<std::endl;
+                        rados_unlock(_io_ctx, name.c_str(), "write_lock", "tag");
+                        return "";
+                    }
+                    std::string json_string2(new_schema, c_stringsize);
+                    if(c_stringsize>0){
+                        conduit::Schema node1(json_string);
+                        conduit::Schema node2(json_string2);
+                        combine_schema(node1,node2);
+                        write =node1.to_json(true,2);
+                    }
+                    else
+                    {
+                       write= json_string;
+                        c_stringsize= write.length();
+
+                    }
+                    free(new_schema);
+
+
+            }
+
+            c_stringsize= write.length();
             rados_write_op_t write_op =  rados_create_write_op();
-//            if(version >0)
-            rados_write_op_assert_version(write_op, version);
-            rados_write_op_write_full(write_op, json_string.c_str(), size);
-            rados_write_op_setxattr(write_op,  "type", "Schema", 6);
-            rados_write_op_setxattr(write_op,"Len",  reinterpret_cast<const char*>(&size), sizeof(size_t));
-
-            rados_lock_exclusive(_io_ctx, name.c_str(), "write_lock", "cookie", "write lock for schema",NULL, 0);
+            rados_write_op_write_full(write_op, write.c_str(), c_stringsize);
+            rados_write_op_setxattr(write_op,"type",  "Schema", 6);
             ret = rados_write_op_operate(write_op, _io_ctx, name.c_str(), NULL, 0);
             rados_release_write_op(write_op);
-            if(ret<0){
-                std::cerr<<"old version"<< version<<std::endl;
-                size_t string_size;
-                rados_getxattr(_io_ctx,name.c_str(), "Len", reinterpret_cast<char*>(&string_size), sizeof(size_t));
-                char* new_schema = new char[string_size];
-                memset (new_schema, 0, string_size);
-                ret =  rados_read(_io_ctx, name.c_str(), new_schema, string_size,0);
-                if(ret<0) {
-                    std::cerr<<"Error reading Schema "<<name<<" to ceph cluster "<<std::endl;
-                    rados_unlock(_io_ctx, name.c_str(), "write_lock", "tag");
-                    return -1;
-                }
-                std::string json_new;
-                std::string json_string2(new_schema, string_size);
-                if(string_size>0){
-                    conduit::Schema node1(json_string);
-                    conduit::Schema node2(json_string2);
-                    combine_schema(node1,node2);
-                    json_new = node1.to_json(true,2);
-                }
-                else
-                    json_new=json_string;
-                size = json_new.length();
-                write_op =  rados_create_write_op();
-                rados_write_op_write_full(write_op, json_new.c_str(), size);
-                rados_write_op_setxattr(write_op,"Len",  reinterpret_cast<const char*>(&size), sizeof(size_t));
-                ret = rados_write_op_operate(write_op, _io_ctx, name.c_str(), NULL, 0);
-                rados_release_write_op(write_op);
-            }
             if(ret<0) {
                 std::cerr<<"Error writing Schema "<<name<<" to ceph cluster "<<ret<<std::endl;
             }
 
-            version = rados_get_last_version(_io_ctx);
+            ret = rados_stat(_io_ctx,  name.c_str(), &c_stringsize, &t_version);
             rados_unlock(_io_ctx, name.c_str(), "write_lock", "cookie");
-            _exist =1;
 
-            return ret;
+            _exist =1;
+            return write;
         }
+
     int writeSchema(conduit::Schema& node) {
          std::string json_string = node.to_json(true,2);
-         return writeSchema(json_string);
+         std::string news = writeSchema(json_string);
+         conduit::Schema newn(news);
+         combine_schema(node, newn);
+          return 0;
     }
 
         std::string getSchema() {
@@ -146,9 +155,17 @@ class JRadosCSchema: public JRadosObject{
             const std::string name = get_name();
             char *data;
             size_t string_size;
+            int pval;
+            int lock;
 
+            do{
+
+                    lock = rados_lock_exclusive(_io_ctx, name.c_str(), "write_lock", "cookie", "write lock for schema",NULL, 0);
+         //   lock = rados_lock_shared(_io_ctx, name.c_str(), "read_log", "cookie", "tag", "read lock for schema",NULL, 0);
+            } while(lock!=0);
             rados_read_op_t read_op =  rados_create_read_op();
             rados_read_op_assert_exists(read_op);
+            rados_read_op_stat(read_op, &string_size, &t_version, &pval);
             rados_read_op_cmpxattr(read_op,"type", LIBRADOS_CMPXATTR_OP_EQ , "Schema", 6);
 
 
@@ -158,23 +175,22 @@ class JRadosCSchema: public JRadosObject{
                 return "";
             }
 
-            rados_release_read_op(read_op);
             _exist = 1;
-            rados_lock_shared(_io_ctx, name.c_str(), "read_log", "cookie", "tag", "read lock for schema",NULL, 0);
-            rados_getxattr(_io_ctx,name.c_str(), "Len", reinterpret_cast<char*>(&string_size), sizeof(size_t));
             data = new char[string_size];
+
             memset (data, 0, string_size);
             ret =  rados_read(_io_ctx, name.c_str(), data, string_size,0);
-
             if(ret<0) {
                 std::cerr<<"Error reading Schema "<<name<<" to ceph cluster "<<std::endl;
                 return "";
             }
-            version = rados_get_last_version(_io_ctx);
-            printf("version is %ld\n",version);
-            rados_unlock(_io_ctx, name.c_str(), "read_log", "cookie");
-            std::string json_string(data, string_size);
 
+            rados_release_read_op(read_op);
+
+            rados_unlock(_io_ctx, name.c_str(), "write_lock", "cookie");
+            //rados_unlock(_io_ctx, name.c_str(), "read_log", "cookie");
+            std::string json_string(data, string_size);
+            std::cout<<json_string<<std::endl;
             delete data;
             return json_string;
         }
@@ -191,7 +207,6 @@ class JRadosCSchema: public JRadosObject{
                     _exist = 0;
                 }
                 else _exist = 1;
-
                 rados_release_read_op(read_op);
             }
 
@@ -201,7 +216,7 @@ class JRadosCSchema: public JRadosObject{
 
     private:
         int _exist;
-        uint64_t version;
+        time_t t_version;
 };
 
 enum mode{

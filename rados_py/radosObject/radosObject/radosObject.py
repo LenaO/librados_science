@@ -29,12 +29,18 @@ class RadosObject:
             self._name = parent._name+"/"+name 
             self._basename = name
             self._parent = parent
+
+        self.modified = False
         self._dataSet = None
         self._children = dict()
 
 
     def delete(self):
-        self.save()
+
+        if self._radosSchema is not None:
+            self._cschema=conduit.Schema(self._radosSchema.getSchema())
+
+        print(self)
         if self._cschema.dtype().is_number():
             if  self._dataSet is None:
                 self._dataSet=scirados.RadosDataSet(self._name, self._pool_name)
@@ -68,7 +74,10 @@ class RadosObject:
         if self._radosSchema is None:
             self._root.save()
         else:
-             self._radosSchema.writeSchema(str(self._cschema))
+             if self.modified is True:
+                s = self._radosSchema.writeSchema(str(self._cschema))
+                self._cschema = conduit.Schema(s)
+                self.modified= False
 
     def readBox(self, slicex, slicey=None):
         if(not self._cschema.dtype().is_number()):
@@ -101,7 +110,8 @@ class RadosObject:
         if self._dataSet is None:
             self._dataSet = scirados.RadosDataSet(self._name, self._pool_name) 
         self._dataSet.writeData(data)
-        self.save()
+        self.modified=False
+        self._root.modified = True
 
     def keys(self):
         my_json = json.loads(str(self._cschema))
@@ -157,6 +167,8 @@ class RadosObject:
                 if(not self._cschema.dtype().is_number()):
                     self._children[index] = RadosObject(index, parent=self, root=self._root) 
                     tmp = self._children[index]
+                    self.modified= True
+                    self._root.modified= True
                 else:
                     return None
             tmp.writeData(item)
